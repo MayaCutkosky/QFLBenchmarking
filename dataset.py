@@ -8,12 +8,12 @@ Created on Mon Nov  3 15:12:55 2025
 
 import fedjax
 import jax
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, StandardScaler
 import numpy as np
 
 def EMNIST_dataset():
     pca = PCA(256)
-    
+    scaler = StandardScaler()
     dset = fedjax.datasets.emnist.load_data()
     client_ids = list(dset[0].client_ids())[:5]
     clients_ids_and_data = list(dset[0].get_clients(client_ids))
@@ -24,9 +24,11 @@ def EMNIST_dataset():
     for i, (rng, old_dset) in enumerate(zip(jax.random.split(rng, 5), clients_ids_and_data)):
         old_dset = old_dset[1].all_examples()
         x = old_dset['x'].reshape(len(old_dset['x']),-1)
-        try :
+        if i == 0:
+            x = scaler.fit_transform(x)
             x = pca.fit_transform(x)
-        except: #cheating...
+        else: 
+            x = scaler.transform(x)
             x = pca.transform(x)
         
         y = old_dset['y']

@@ -150,7 +150,7 @@ def make_federated_model(backend, num_classes = 1):
     
     def loss_fun(batch, pred):
         target = jax.nn.one_hot(batch['y'], num_classes)
-        return optax.losses.squared_error(pred, target)
+        return optax.losses.squared_error(pred, target).mean()
         
     
     
