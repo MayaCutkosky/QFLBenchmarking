@@ -68,24 +68,23 @@ from flwr_datasets import FederatedDataset
 #fds = None  # Cache FederatedDataset
 
 
-def get_data(dataset, partition_id, num_partitions):
+def get_data(dataset, partition_id, num_partitions, num_features = 256):
     partitioner = IidPartitioner(num_partitions=num_partitions)
     fds = FederatedDataset(dataset=dataset, partitioners={"train": partitioner})
     dset = fds.load_partition(partition_id).with_format('torch')
     
-    image_transform = Pipeline( [('scaler', StandardScaler()), ('pca', PCA(256) ) ] )
+    image_transform = Pipeline( [('scaler', StandardScaler()), ('pca', PCA(num_features) ) ] )
     image_transform.fit(dset['image'].reshape(len(dset), -1))
     def preprocess_data(sample):
         x = sample['image'].reshape(1, -1)
         y = sample['label']
         x = image_transform.transform(x)
-        sample['x'] = x
+        sample['x'] = x.reshape(-1)
         sample['y'] = y
         return sample
     dset = dset.map(preprocess_data, remove_columns=['image', 'label'])
+#    return dset
     return dset
-    dset = dset.take(80)
-    return dset.iter(8)
 
 
 from importlib import import_module
@@ -94,4 +93,25 @@ def load_model(model_name):
 #    return model_lib.run, model_lib.loss_fun, model_lib.init_params
     return model_lib.Model
 
-
+import torch
+def train(model, data, lr=0.01, optim = None):
+    if optim is None:
+        optim = torch.optim.Adam(model.parameters(), lr)
+        
+    ave_loss = 0
+    loss_history = []
+    try:
+        for i, sample in enumerate(data):
+            x = sample['x']
+            y_true = sample['y']
+            optim.zero_grad()
+            y_pred = model(x)
+            loss = model.loss_fun(y_true, y_pred, 10)
+            loss.backward()
+            optim.step()
+            ave_loss  += loss.item()
+            loss_history.append(loss.item())
+            if i % 2 == 0:
+                print('.', end = '')
+    finally:
+        return loss_history, optim
